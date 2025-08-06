@@ -20,3 +20,4 @@ venv/
 # Sensitive files
 config.py
 secrets.json
+.env
