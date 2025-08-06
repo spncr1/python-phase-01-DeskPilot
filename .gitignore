@@ -1,0 +1,22 @@
+# Python/OS related
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.log
+
+# Environments
+.env
+.venv/
+env/
+venv/
+
+# VS Code junk
+.vscode/
+
+# Mac OS junk
+.DS_Store
+
+# Sensitive files
+config.py
+secrets.json
