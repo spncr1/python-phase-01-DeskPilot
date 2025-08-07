@@ -36,19 +36,11 @@ import playsound
 # Environment variables
 from dotenv import load_dotenv
 
-# Tkinter ROOT WINDOW
-
-# MAIN MENU BUTTONS
-
-# ... LOGIC
-
-# GLOBAL VOICE TRIGGER
-
-def main():
+if __name__ == "__main__":
     root = tk.Tk()
     root.title("DeskPilot")
     root.geometry("400x400")
-    root.mainloop()
 
-if __name__ == "__main__":
-    main()
+    build_main_menu(root)
+
+    root.mainloop()
