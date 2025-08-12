@@ -1,46 +1,41 @@
-# Entry point for project (i.e., the main menu / home screen)
+#!/usr/bin/env python3
+"""
+DeskPilot - Main Tkinter Application
+Simple GUI-based desktop assistant with app launcher functionality
+"""
 
-# add the following imports to their specific files later, for now keep here so i remember where each goes
-
-# Std Lib
-import os
+import tkinter as tk
+from tkinter import ttk
 import sys
-import subprocess
 from pathlib import Path
 
-# GUI
-import tkinter as tk
-from gui.main_menu import build_main_menu # placehodler for when i build main_menu.py in the GUI folder
+# Add project directories to path
+project_root = Path(__file__).parent
+sys.path.extend([
+    str(project_root),
+    str(project_root / "voice"),
+    str(project_root / "core"),
+    str(project_root / "gui")
+])
 
-# File handling & parsing
-import shutil
-import fitz # PyMuPDF for PDF parsing
-import docx # python-docx for Word docs
+from gui.main_menu import MainMenuGUI
 
-# Data handling (placeholder for future .csv file handling expansion)
-import csv
-import pandas as pd
-
-# OpenAI API
-import openai
-
-# ElevenLabs API
-from elevenlabs.client import ElevenLabs
-from elevenlabs import play
-
-# Voice I/O
-import speech_recognition as sr
-from gtts import gTTS
-import playsound
-
-# Environment variables
-from dotenv import load_dotenv
-
-if __name__ == "__main__":
+def main():
+    """Launch the DeskPilot GUI application"""
     root = tk.Tk()
     root.title("DeskPilot")
-    root.geometry("400x400")
+    root.geometry("500x600")
+    root.resizable(False, False)
 
-    build_main_menu(root)
+    # Set a clean background color
+    root.configure(bg='#f0f0f0')
 
+    # Create and start the main menu
+    app = MainMenuGUI(root)
+
+    # Start the tkinter event loop
     root.mainloop()
+
+
+if __name__ == "__main__":
+    main()

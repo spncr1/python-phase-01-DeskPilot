@@ -1,1 +1,0 @@
-# Handles voice input (STT)
