@@ -67,13 +67,24 @@ class AppLauncher:
             found_process = False
             # Find and terminate the process
             for proc in psutil.process_iter(['pid', 'name']):
-                if app_name.lower() in proc.info['name'].lower():
-                    proc.terminate()
-                    found_process = True
-                    print(f"Quit {app_name}")
-                    if speak_feedback:
-                        speak(f"I've quit {app_name} for you, sir.")
-                    return True
+                try:
+                    proc_name = proc.info['name'].lower()
+                    app_name_lower = app_name.lower()
+
+                    # More flexible matching - check if app name is contained in process name
+                    if (app_name_lower in proc_name or
+                            proc_name.startswith(app_name_lower) or
+                            any(word in proc_name for word in app_name_lower.split())):
+
+                        proc.terminate()
+                        found_process = True
+                        print(f"Quit {app_name} (process: {proc.info['name']})")
+                        if speak_feedback:
+                            speak(f"I've quit {app_name} for you, sir.")
+                        return True
+
+                except (psutil.NoSuchProcess, psutil.AccessDenied):
+                    continue
 
             if not found_process:
                 print(f"{app_name} is not currently running")
@@ -402,6 +413,49 @@ def quit_app_by_voice(command, gpt_handler=None):
     command_lower = command.lower()
     launcher = AppLauncher()
 
+    # Enhanced quit mappings with more variations
+    quit_mappings = {
+        # Browsers
+        'chrome': 'Chrome',
+        'google chrome': 'Chrome',
+        'browser': 'Chrome',
+        'safari': 'Safari',
+        'firefox': 'Firefox',
+
+        # Development
+        'vscode': 'Code',
+        'vs code': 'Code',
+        'visual studio code': 'Code',
+        'code': 'Code',
+        'editor': 'Code',
+
+        # Media
+        'spotify': 'Spotify',
+        'music': 'Spotify',
+        'tunes': 'Spotify',
+
+        # Utilities
+        'notes': 'Notes',
+        'note': 'Notes',
+        'notepad': 'Notes',
+        'terminal': 'Terminal',
+        'command line': 'Terminal',
+        'shell': 'Terminal',
+        'calculator': 'Calculator',
+        'calc': 'Calculator',
+        'math': 'Calculator',
+        'mail': 'Mail',
+        'email': 'Mail',
+        'calendar': 'Calendar',
+        'schedule': 'Calendar'
+    }
+
+    # Try direct mapping first for quit commands
+    for key, app_name in quit_mappings.items():
+        if key in command_lower:
+            success = launcher.quit_application(app_name)
+            return success
+
     # If GPT handler available, use it for intelligent parsing
     if gpt_handler:
         try:
@@ -420,8 +474,20 @@ def quit_app_by_voice(command, gpt_handler=None):
         if trigger in words:
             trigger_index = words.index(trigger)
             if trigger_index + 1 < len(words):
-                app_name = ' '.join(words[trigger_index + 1:]).title()
-                return launcher.quit_application(app_name)
+                # Get the app name after the trigger
+                app_words = words[trigger_index + 1:]
+                app_name = ' '.join(app_words)
+
+                # Try the app name as-is first
+                success = launcher.quit_application(app_name)
+                if success:
+                    return True
+
+                # Try with title case
+                app_name_title = app_name.title()
+                success = launcher.quit_application(app_name_title)
+                if success:
+                    return True
 
     speak("I'm not sure which application you want to quit, sir. Could you please specify?")
     return False

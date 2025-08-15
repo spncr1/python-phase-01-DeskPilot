@@ -12,6 +12,7 @@ sys.path.append(str(Path(__file__).parent.parent))
 from voice import speaker as speaker_module
 from voice.speaker import speak
 from voice.listener import listen_command
+from voice.voice_handler import VoiceHandler, start_voice_session
 from core.app_launcher import (
     AppLauncher,
     open_vscode,
@@ -22,7 +23,6 @@ from core.app_launcher import (
 )
 from gpt import GPTHandler
 
-
 class AppLauncherGUI:
     def __init__(self, root, main_menu):
         self.root = root
@@ -31,6 +31,7 @@ class AppLauncherGUI:
         self.gpt_handler = GPTHandler()
         self.is_listening = False
         self.setup_ui()
+        self.voice_handler = VoiceHandler()
 
     def setup_ui(self):
         for widget in self.root.winfo_children():
@@ -145,7 +146,7 @@ class AppLauncherGUI:
         # SPEAK BUTTON
         self.speak_btn = tk.Button(
             controls_frame,
-            text="🗣",
+            text="🎤",
             font=("Arial", 20),
             bg="#4CAF50",
             fg="white",
@@ -153,16 +154,16 @@ class AppLauncherGUI:
             height=1,
             relief="raised",
             borderwidth=2,
-            command=self.toggle_listen_flow,
+            command=self.on_speak_button_clicked,
         )
         self.speak_btn.pack(side="right")
 
         # BACK BUTTON
         back_btn = tk.Button(
             self.root,
-            text="← Back to Main Menu",
+            text="BACK TO\nMAIN\nMENU",
             command=self.go_back,
-            font=("Arial", 10),
+            font=("Arial", 10, "bold"),
             bg="#dddddd",
             fg="#333333",
             relief="raised",
@@ -205,6 +206,13 @@ The transcription box shows our conversation history."""
 
         messagebox.showinfo("App Launcher Help", help_text)
 
+    def on_speak_button_clicked(self):
+        """FIXED speak button handler - no more feedback!"""
+        print("🎤 Speak button clicked")
+
+        # Use the fixed voice handler
+        self.voice_handler.start_voice_interaction()
+
     def _run_and_log(self, func, action_name):
         """Helper to run an action and log + speak with proper feedback"""
         self.add_to_transcription(f"(User) clicked: {action_name}")
@@ -246,7 +254,11 @@ The transcription box shows our conversation history."""
         """
         try:
             # 1. Get dynamic prompt from GPT
-            dynamic_prompt = self.gpt_handler.get_dynamic_prompt()
+            try:
+                dynamic_prompt = self.gpt_handler.get_dynamic_prompt()
+            except Exception as e:
+                print(f"GPT prompt generation failed: {e}")
+                dynamic_prompt = "How can I assist you today, sir?"
 
             # 2. Speak the prompt and log
             self.add_to_transcription(f"(DeskPilot) says: {dynamic_prompt}")
@@ -254,35 +266,63 @@ The transcription box shows our conversation history."""
 
             # 3. Listen for command
             self.add_to_transcription("(System) Listening for voice command...")
-            command = listen_command(timeout=10, phrase_time_limit=15)
+            print("🎤 Starting to listen...")
 
-            # 4. Handle no command
-            if not command:
+            try:
+                command = listen_command(timeout=8, phrase_time_limit=12)
+                print(f"🎤 Received command: '{command}'")
+            except Exception as listen_error:
+                print(f"Listen error: {listen_error}")
+                command = ""
+
+            # 4. Handle no command or empty command
+            if not command or command.strip() == "":
                 self.add_to_transcription("(System) No command detected")
                 speak("I didn't catch that, sir. Please try again.")
                 return
 
             # 5. Log user's command
             self.add_to_transcription(f"(User) says: {command}")
+            print(f"📝 Processing command: {command}")
 
             # 6. Process command with enhanced logic
-            processed = self._process_voice_command(command)
+            try:
+                processed = self._process_voice_command(command)
+                print(f"✅ Command processed: {processed}")
 
-            if not processed:
-                # Fallback to GPT for general questions
-                self.add_to_transcription("(System) Using GPT for general response")
-                response = self.gpt_handler.get_response(command)
-                self.add_to_transcription(f"(DeskPilot) says: {response}")
-                speak(response)
+                if not processed:
+                    # Fallback to GPT for general questions
+                    print("🤖 Using GPT for general response")
+                    self.add_to_transcription("(System) Using GPT for general response")
+
+                    try:
+                        response = self.gpt_handler.get_response(command)
+                        self.add_to_transcription(f"(DeskPilot) says: {response}")
+                        speak(response)
+                    except Exception as gpt_error:
+                        print(f"GPT response failed: {gpt_error}")
+                        fallback_response = "I'm sorry sir, I'm having trouble processing that request at the moment."
+                        self.add_to_transcription(f"(DeskPilot) says: {fallback_response}")
+                        speak(fallback_response)
+
+            except Exception as process_error:
+                print(f"Command processing error: {process_error}")
+                error_response = "I encountered an error processing your command, sir."
+                self.add_to_transcription(f"(DeskPilot) says: {error_response}")
+                speak(error_response)
 
         except Exception as e:
+            print(f"❌ Voice flow error: {e}")
             self.add_to_transcription(f"(System) Error during voice flow: {e}")
             speak("Sorry sir, I encountered an error while processing your request.")
         finally:
             # Reset UI
             self.is_listening = False
-            time.sleep(0.2)
-            self.speak_btn.config(bg="#4CAF50", text="🗣")
+            time.sleep(0.5)
+            try:
+                self.speak_btn.config(bg="#4CAF50", text="🎤")
+            except:
+                pass
 
     def _process_voice_command(self, command):
         """
@@ -294,50 +334,85 @@ The transcription box shows our conversation history."""
         Returns:
             bool: True if command was processed, False otherwise
         """
-        command_lower = command.lower()
+        if not command or not command.strip():
+            return False
+
+        command_lower = command.lower().strip()
+        print(f"🔍 Processing command: '{command_lower}'")
 
         # 1. Check for app opening commands
-        if any(word in command_lower for word in ["open", "launch", "start", "run"]):
-            success = launch_app_by_voice(command, self.gpt_handler)
-            if success:
-                self.add_to_transcription("(System) Application launched successfully")
+        open_triggers = ["open", "launch", "start", "run"]
+        if any(word in command_lower for word in open_triggers):
+            print("🚀 Detected app opening command")
+            try:
+                success = launch_app_by_voice(command, self.gpt_handler)
+                if success:
+                    self.add_to_transcription("(System) Application launched successfully")
+
+                else:
+                    self.add_to_transcription("(System) Application launch failed or not found")
+                return True  # Command was handled, regardless of success
+            except Exception as e:
+                print(f"App launch error: {e}")
+                speak("Sorry sir, I had trouble launching that application.")
                 return True
-            else:
-                self.add_to_transcription("(System) Application launch failed or not found")
-                return True  # Still processed, even if failed
 
         # 2. Check for app quitting commands
-        if any(word in command_lower for word in ["quit", "close", "stop", "exit", "kill"]):
-            success = quit_app_by_voice(command, self.gpt_handler)
-            if success:
-                self.add_to_transcription("(System) Application quit successfully")
+        quit_triggers = ["quit", "close", "stop", "exit", "kill"]
+        if any(word in command_lower for word in quit_triggers):
+            print("🛑 Detected app quitting command")
+            try:
+                success = quit_app_by_voice(command, self.gpt_handler)
+                if success:
+                    self.add_to_transcription("(System) Application quit successfully")
+                else:
+                    self.add_to_transcription("(System) Application quit failed or not found")
+                return True  # Command was handled
+            except Exception as e:
+                print(f"App quit error: {e}")
+                speak("Sorry sir, I had trouble quitting that application.")
                 return True
-            else:
-                self.add_to_transcription("(System) Application quit failed or not found")
-                return True  # Still processed
 
         # 3. Check for running apps query
         running_phrases = [
             "running", "what's open", "what is open", "what's running",
             "what is running", "list apps", "show apps", "current apps",
-            "what applications", "running applications"
+            "what applications", "running applications", "apps running"
         ]
         if any(phrase in command_lower for phrase in running_phrases):
-            success = self.app_launcher.speak_running_apps()
-            if success:
-                self.add_to_transcription("(System) Listed running applications")
-            else:
-                self.add_to_transcription("(System) Failed to list running applications")
-            return True
+            print("📱 Detected running apps query")
+            try:
+                success = self.app_launcher.speak_running_apps()
+                if success:
+                    self.add_to_transcription("(System) Listed running applications")
+                else:
+                    self.add_to_transcription("(System) Failed to list running applications")
+                return True
+            except Exception as e:
+                print(f"Running apps error: {e}")
+                speak("Sorry sir, I had trouble checking your running applications.")
+                return True
 
         # 4. Check for system commands
-        if any(phrase in command_lower for phrase in ["help", "what can you do", "commands"]):
+        help_phrases = ["help", "what can you do", "commands", "what can i do"]
+        if any(phrase in command_lower for phrase in help_phrases):
+            print("❓ Detected help command")
             help_text = ("I can help you open applications, quit applications, "
                          "and show what's currently running, sir. Just tell me what you'd like to do!")
             speak(help_text)
             self.add_to_transcription(f"(DeskPilot) says: {help_text}")
             return True
 
+        # 5. Check for greeting
+        greeting_phrases = ["hello", "hi", "hey", "good morning", "good afternoon", "good evening"]
+        if any(phrase in command_lower for phrase in greeting_phrases):
+            print("👋 Detected greeting")
+            greeting_response = "Hello sir, how can I assist you today?"
+            speak(greeting_response)
+            self.add_to_transcription(f"(DeskPilot) says: {greeting_response}")
+            return True
+
+        print("❓ Command not recognized by specific handlers")
         # Command not recognized by specific handlers
         return False
 

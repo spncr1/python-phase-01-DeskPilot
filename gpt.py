@@ -6,7 +6,7 @@ from pathlib import Path
 # Add project root to path
 sys.path.append(str(Path(__file__).parent))
 
-from config import openai_client, ASSISTANT_NAME, USER_NAME, MAX_TOKENS, TEMPERATURE
+from config import ASSISTANT_NAME, USER_NAME, MAX_TOKENS, TEMPERATURE, openai_client, OPENAI_AVAILABLE
 
 
 # existing ask_gpt function retained for direct calls
@@ -15,6 +15,10 @@ def ask_gpt(prompt, system_message=None):
     Send a prompt to GPT-3.5-turbo and return the response
     """
     try:
+        # Check if OpenAI is available
+        if not OPENAI_AVAILABLE or openai_client is None:
+            return f"Sorry {USER_NAME}, OpenAI integration is not available. Please check your API key."
+
         if system_message is None:
             system_message = (
                 f"You are {ASSISTANT_NAME}, an interactive personal desktop assistant. "
@@ -43,6 +47,10 @@ def ask_gpt_with_context(prompt, context_messages):
     Send a prompt with conversation context to GPT
     """
     try:
+        # Check if OpenAI is available
+        if not OPENAI_AVAILABLE or openai_client is None:
+            return f"Sorry {USER_NAME}, OpenAI integration is not available. Please check your API key."
+
         if not context_messages or context_messages[0]["role"] != "system":
             system_msg = {
                 "role": "system",
@@ -89,6 +97,11 @@ class GPTHandler:
     def get_dynamic_prompt(self):
         """Get a varied, conversational prompt from GPT or fallback to local variants."""
         try:
+            # Check if OpenAI is available
+            if not OPENAI_AVAILABLE or openai_client is None:
+                print("OpenAI not available, using local prompt")
+                return self._get_local_prompt()
+
             # Create a prompt that encourages variety
             gpt_request = (
                 "Generate a short, polite prompt asking what the user would like to do. "
@@ -118,21 +131,29 @@ class GPTHandler:
 
         except Exception as e:
             print(f"GPT prompt generation failed: {e}")
-            # Return a local prompt that wasn't used recently
-            available_prompts = [p for p in self._local_prompts if p not in self._recent_prompts]
-            if not available_prompts:
-                available_prompts = self._local_prompts
+            return self._get_local_prompt()
 
-            chosen_prompt = random.choice(available_prompts)
-            self._recent_prompts.append(chosen_prompt)
-            if len(self._recent_prompts) > self._max_recent:
-                self._recent_prompts.pop(0)
+    def _get_local_prompt(self):
+        """Get a local fallback prompt"""
+        # Return a local prompt that wasn't used recently
+        available_prompts = [p for p in self._local_prompts if p not in self._recent_prompts]
+        if not available_prompts:
+            available_prompts = self._local_prompts
 
-            return chosen_prompt
+        chosen_prompt = random.choice(available_prompts)
+        self._recent_prompts.append(chosen_prompt)
+        if len(self._recent_prompts) > self._max_recent:
+            self._recent_prompts.pop(0)
+
+        return chosen_prompt
 
     def get_response(self, user_prompt):
         """Return a helpful response to a user prompt with app launcher context."""
         try:
+            # Check if OpenAI is available
+            if not OPENAI_AVAILABLE or openai_client is None:
+                return f"Sorry {USER_NAME}, I don't have access to GPT right now. Please check the OpenAI API configuration."
+
             # Enhanced system message for better app launcher integration
             system_msg = (
                 f"You are {ASSISTANT_NAME}, a desktop assistant specializing in app launching and system management. "
@@ -156,6 +177,10 @@ class GPTHandler:
         Returns a structured response with action and app name.
         """
         try:
+            # Check if OpenAI is available
+            if not OPENAI_AVAILABLE or openai_client is None:
+                return {'action': 'unknown', 'app': 'none', 'confidence': 'low', 'error': 'OpenAI not available'}
+
             gpt_request = (
                 f"Analyze this voice command: '{command}'\n\n"
                 f"Determine:\n"
@@ -192,11 +217,15 @@ class GPTHandler:
 
         except Exception as e:
             print(f"Error interpreting command: {e}")
-            return {'action': 'unknown', 'app': 'none', 'confidence': 'low'}
+            return {'action': 'unknown', 'app': 'none', 'confidence': 'low', 'error': str(e)}
 
     def get_app_suggestion(self, failed_app_name):
         """Get GPT's suggestion for an app that couldn't be found."""
         try:
+            # Check if OpenAI is available
+            if not OPENAI_AVAILABLE or openai_client is None:
+                return f"Sorry sir, I couldn't find '{failed_app_name}' and I don't have access to GPT for suggestions right now."
+
             gpt_request = (
                 f"The user tried to open '{failed_app_name}' but it's not installed or recognized. "
                 f"Suggest 1-2 similar applications they might have meant, or explain what '{failed_app_name}' typically is. "

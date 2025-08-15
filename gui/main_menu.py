@@ -7,11 +7,12 @@ from pathlib import Path
 from numpy.ma.core import append
 
 from gui.app_launcher_ui import AppLauncherGUI
+from gui.file_summariser_ui import FileSummariserGUI
 
 # Add parent directory for imports
 sys.path.append(str(Path(__file__).parent.parent))
 
-# PLACEHOLDER: Import voice and GPT modules when implementing speech functionality
+# Import voice and GPT modules when implementing speech functionality
 from voice.speaker import speak
 from voice.listener import listen_command
 from gpt import GPTHandler
@@ -100,7 +101,7 @@ class MainMenuGUI:
         AppLauncherGUI(self.root, self)
 
     def open_desktop_organiser(self):
-        messagebox.showinfo("Functionality coming soon!")
+        messagebox.showinfo("Coming Soon", "Functionality coming soon!")
 
     def open_file_summariser(self):
-        messagebox.showinfo("Functionality coming soon!")
+        FileSummariserGUI(self.root, self)
