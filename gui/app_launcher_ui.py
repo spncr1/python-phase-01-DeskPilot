@@ -102,7 +102,7 @@ class AppLauncherGUI:
         currently_running_btn = tk.Button(
             button_frame,
             text="Applications Currently Open",
-            command=lambda: self._run_and_log(self.app_launcher.speak_running_apps, "List Running Apps"),
+            command=self._show_running_apps_example,
             **btn_style
         )
         currently_running_btn.pack(pady=10)
@@ -207,8 +207,6 @@ The transcription box shows our conversation history."""
         messagebox.showinfo("App Launcher Help", help_text)
 
     def on_speak_button_clicked(self):
-        """FIXED speak button handler - no more feedback!"""
-        print("🎤 Speak button clicked")
 
         # Use the fixed voice handler
         self.voice_handler.start_voice_interaction()
@@ -234,6 +232,15 @@ The transcription box shows our conversation history."""
                 speak(f"Sorry sir, an error occurred: {e}")
 
         threading.Thread(target=runner, daemon=True).start()
+
+    def _show_running_apps_example(self):
+        """GUI example: Print list of running apps to transcription (no TTS)."""
+        try:
+            sentence = self.app_launcher.running_apps_list_sentence()
+            # Print exactly what the assistant would say, but do not speak
+            self.add_to_transcription(f"(DeskPilot) says: {sentence}")
+        except Exception as e:
+            self.add_to_transcription(f"(System) Error while listing apps: {e}")
 
     def toggle_listen_flow(self):
         """Start the speak -> listen -> process loop in a thread"""
@@ -283,7 +290,6 @@ The transcription box shows our conversation history."""
 
             # 5. Log user's command
             self.add_to_transcription(f"(User) says: {command}")
-            print(f"📝 Processing command: {command}")
 
             # 6. Process command with enhanced logic
             try:

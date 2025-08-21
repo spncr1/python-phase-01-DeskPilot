@@ -11,6 +11,11 @@ import pandas as pd
 sys.path.append(str(Path(__file__).parent.parent))
 
 from config import SUPPORTED_FILE_TYPES, DEFAULT_SUMMARY_LENGTH
+# GPT integration (optional)
+try:
+    from gpt import GPTHandler
+except Exception:
+    GPTHandler = None
 
 
 class FileSummariser:
@@ -18,9 +23,11 @@ class FileSummariser:
         self.uploaded_files = []
         self.processed_files = {}
 
-        # File size limits (in bytes)
-        self.MIN_FILE_SIZE = 1024  # 1 KB minimum
-        self.MAX_FILE_SIZE = 50 * 1024 * 1024  # 50 MB maximum
+        # File size limits (configured in GB, computed to bytes)
+        self.MIN_FILE_SIZE_GB = 0.000001  # ~1 KB
+        self.MAX_FILE_SIZE_GB = 0.05      # ~50 MB
+        self.MIN_FILE_SIZE = int(self.MIN_FILE_SIZE_GB * (1024 ** 3))
+        self.MAX_FILE_SIZE = int(self.MAX_FILE_SIZE_GB * (1024 ** 3))
 
         # Content length limits (in characters)
         self.MIN_CONTENT_LENGTH = 100  # Minimum 100 characters
@@ -45,10 +52,16 @@ class FileSummariser:
             # Check file size
             file_size = file_path_obj.stat().st_size
             if file_size < self.MIN_FILE_SIZE:
-                return False, f"File is too small. Minimum size: {self.MIN_FILE_SIZE / 1024:.1f} KB"
+                return False, (
+                    f"File is too small. Minimum size: {self.MIN_FILE_SIZE_GB:.9f} GB "
+                    f"(~{self.MIN_FILE_SIZE/1024:.1f} KB)"
+                )
 
             if file_size > self.MAX_FILE_SIZE:
-                return False, f"File is too large. Maximum size: {self.MAX_FILE_SIZE / (1024 * 1024):.1f} MB"
+                return False, (
+                    f"File is too large. Maximum size: {self.MAX_FILE_SIZE_GB:.3f} GB "
+                    f"(~{self.MAX_FILE_SIZE/(1024*1024):.1f} MB)"
+                )
 
             # Try to read and validate content
             content = self.extract_text_content(file_path)
@@ -226,3 +239,109 @@ class FileSummariser:
             return f"{size_bytes / 1024:.1f} KB"
         else:
             return f"{size_bytes / (1024 * 1024):.1f} MB"
+
+    # ---------------- Summarization helpers (GPT-backed with fallbacks) ----------------
+    def summarise(self, file_path: str, instruction: str = "Provide a general summary") -> Dict:
+        """
+        Summarise a single file according to instruction.
+        Returns dict: { success, message, summary, kind }
+        """
+        try:
+            # Validate the file first
+            ok, emsg = self.validate_file(file_path)
+            if not ok:
+                return { 'success': False, 'message': emsg, 'summary': '', 'kind': 'error' }
+
+            text = self.extract_text_content(file_path) or ''
+            if not text.strip():
+                return { 'success': False, 'message': 'No textual content could be extracted from the file.', 'summary': '', 'kind': 'error' }
+
+            kind = self._detect_request_kind(instruction)
+            prompt = self._build_prompt(kind, instruction, Path(file_path).name)
+
+            # Use GPT if available with a dedicated summariser; else fallback to heuristic short summary
+            summary = None
+            if GPTHandler:
+                try:
+                    gpt = GPTHandler()
+                    # Larger context slice to help GPT, but keep a cap for tokens
+                    content_slice = text[:20000]
+                    summary = gpt.summarize(content_slice, instruction, kind, Path(file_path).name, max_tokens=900, temperature=0.5)
+                    # Robust failure filtering: treat apologies/errors as failure
+                    if summary and isinstance(summary, str):
+                        s_low = summary.lower()
+                        blocked = [
+                            "don't have access to gpt",
+                            "openai integration is not available",
+                            "i'm having trouble processing",
+                            "couldn't process",
+                            "error",
+                            "api configuration"
+                        ]
+                        if any(b in s_low for b in blocked):
+                            summary = None
+                except Exception as e:
+                    print(f"GPT summarisation failed: {e}")
+                    summary = None
+
+            if not summary or not str(summary).strip():
+                summary = self._fallback_summary(text, kind)
+
+            return { 'success': True, 'message': 'Summary completed successfully.', 'summary': str(summary).strip(), 'kind': kind }
+        except Exception as e:
+            return { 'success': False, 'message': f'Error during summarisation: {e}', 'summary': '', 'kind': 'error' }
+
+    def _detect_request_kind(self, instruction: str) -> str:
+        s = (instruction or '').lower()
+        if any(k in s for k in ["timeline", "chronology", "chronological", "sequence of events"]):
+            return 'timeline'
+        if any(k in s for k in ["highlight", "key points", "keypoints", "keywords", "names", "dates", "figures", "topics"]):
+            return 'highlights'
+        if any(k in s for k in ["code", "function", "class", "method", "variable", "algorithm"]):
+            return 'code'
+        return 'general'
+
+    def _build_prompt(self, kind: str, instruction: str, filename: str) -> str:
+        base = (
+            "You are DeskPilot, an assistant that summarises files for the user (address them as 'sir').\n"
+            f"File: {filename}. Keep it concise and structured."
+        )
+        if kind == 'timeline':
+            extra = "Create a clear chronological timeline of events as bullet points with timestamps/dates if present."
+        elif kind == 'highlights':
+            extra = (
+                "Extract highlights: top keywords, named people/organizations, dates, figures, and most discussed topics. "
+                "Return as concise sections with short bullet points."
+            )
+        elif kind == 'code':
+            extra = (
+                "Summarise code: describe the overall purpose, list key functions/classes and explain what important lines/blocks do. "
+                "Point out any potential issues or noteworthy patterns."
+            )
+        else:
+            extra = "Provide a short, helpful summary."
+        if instruction and instruction.strip():
+            extra += f"\nThe user additionally requested: {instruction.strip()}"
+        return base + "\n\n" + extra
+
+    def _fallback_summary(self, text: str, kind: str) -> str:
+        # Very basic, offline fallback
+        lines = [ln.strip() for ln in text.splitlines() if ln.strip()]
+        head = lines[:10]
+        if kind == 'timeline':
+            return "Timeline (approximate):\n- " + "\n- ".join(head[:8])
+        if kind == 'highlights':
+            # Simulate highlights by common words
+            import re, collections
+            words = re.findall(r"[A-Za-z]{4,}", text.lower())
+            common = [w for w, _ in collections.Counter(words).most_common(8)]
+            return (
+                "Highlights:\n- Keywords: " + ", ".join(common) +
+                "\n- Top lines:\n- " + "\n- ".join(head[:5])
+            )
+        if kind == 'code':
+            return (
+                "Code Summary (basic):\n- Purpose: Derived from top comments/first lines.\n- Notable parts:\n- " + "\n- ".join(head[:8])
+            )
+        # general
+        return "Summary:\n- " + "\n- ".join(head[:8])

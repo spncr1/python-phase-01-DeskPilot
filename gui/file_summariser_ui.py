@@ -10,6 +10,19 @@ sys.path.append(str(Path(__file__).parent.parent))
 
 from config import SUPPORTED_FILE_TYPES
 from core.file_summariser import FileSummariser
+# Voice + GPT
+try:
+    from voice.speaker import speak, speak_and_wait
+    from voice.listener import listen_command
+except Exception:
+    speak = None
+    speak_and_wait = None
+    listen_command = None
+
+try:
+    from gpt import GPTHandler
+except Exception:
+    GPTHandler = None
 
 
 class FileSummariserGUI:
@@ -18,6 +31,13 @@ class FileSummariserGUI:
         self.main_menu_ref = main_menu_ref
         self.file_summariser = FileSummariser()
         self.file_widgets = {}  # Track file widget references for removal
+        self.gpt_handler = GPTHandler() if GPTHandler else None
+        self.summary_result_frame = None
+        self.summary_output_text = None
+        # Modal summary window state
+        self.summary_window = None
+        self._summary_saved = True
+        self._last_summary_filename = None
         self.setup_file_summariser_ui()
 
     def setup_file_summariser_ui(self):
@@ -378,41 +398,282 @@ class FileSummariserGUI:
             self.summary_text.configure(fg='#999999')
 
     def process_summary(self):
-        """Process the file summary request"""
+        """Process the file summary request using core + GPT and display results"""
+        # Enforce single summary window at a time
+        try:
+            if self.summary_window and self.summary_window.winfo_exists():
+                messagebox.showwarning("Summary Window Open", "Please close the current summary window before generating a new one.")
+                return
+        except Exception:
+            pass
         uploaded_files = self.file_summariser.get_uploaded_files()
 
         if not uploaded_files:
             messagebox.showwarning("No Files", "Please upload at least one file to summarise.")
+            if speak_and_wait:
+                speak_and_wait("Please upload a file for me to summarise, sir.")
             return
 
-        summary_instruction = self.summary_text.get('1.0', 'end-1c').strip()
-        if not summary_instruction or summary_instruction == "Describe how you'd like your file summarised (e.g. 'Summarise in bullet points', 'Write as a short news article'...":
-            summary_instruction = "Provide a general summary"
+        instruction = self.summary_text.get('1.0', 'end-1c').strip()
+        if not instruction or instruction == "Describe how you'd like your file summarised (e.g. 'Summarise in bullet points', 'Write as a short news article'...":
+            instruction = "Provide a general summary"
 
-        # TODO: Call the GPT processing logic here
-        file_names = [Path(f).name for f in uploaded_files]
-        messagebox.showinfo(
-            "Processing",
-            f"Processing {len(uploaded_files)} file(s): {', '.join(file_names)}\n\n"
-            f"Summary request: {summary_instruction}\n\n"
-            f"GPT integration coming next..."
-        )
+        target_file = uploaded_files[0]  # Start with first for now
+        result = self.file_summariser.summarise(target_file, instruction)
+
+        if not result.get('success'):
+            msg = result.get('message', 'An error occurred during summarisation.')
+            self.show_status_message(f"✗ {msg}", "error")
+            messagebox.showerror("Summary Error", msg)
+            if speak_and_wait:
+                speak_and_wait(f"Sorry sir, {msg}")
+            return
+
+        # Success: display in modal
+        summary_text = result.get('summary', '')
+        self.show_summary_result(Path(target_file).name, summary_text, result.get('kind', 'general'))
+        # Speak confirmation (not reading the whole summary by default)
+        if speak_and_wait:
+            speak_and_wait("Summary completed successfully, sir.")
 
     def show_help(self):
         """Show help information"""
         help_text = """File Summariser Help:
 
 1. Click the upload area or drag files to add them
-2. Supported file types: PDF, DOCX, CSV
-3. Describe how you want the summary formatted
-4. Click the arrow button to process
-5. Use the back button to return to main menu"""
+2. Supported file types: PDF, DOCX, CSV, TXT
+3. Describe how you want the summary formatted (e.g., timeline, highlights, code summary)
+4. Click the arrow button or use the 🎤 button to speak your request
+5. After a summary completes, you can copy it, read it aloud, or summarise another file
+6. Use the back button to return to main menu"""
 
         messagebox.showinfo("Help", help_text)
 
     def toggle_voice(self):
-        """Toggle voice input (placeholder)"""
-        messagebox.showinfo("Voice Input", "Voice input functionality coming soon!")
+        """Voice input: dynamic greeting, listen, and process summary/identity/name."""
+        # Ensure there is a file
+        uploaded_files = self.file_summariser.get_uploaded_files()
+        if not uploaded_files:
+            if speak_and_wait:
+                speak_and_wait("Please upload a file first, sir.")
+            else:
+                messagebox.showinfo("Voice", "Please upload a file first.")
+            return
+
+        # Dynamic greeting tailored to File Summariser
+        greet = None
+        if self.gpt_handler:
+            try:
+                # Use specialised summariser prompt if available
+                if hasattr(self.gpt_handler, 'get_summariser_prompt'):
+                    greet = self.gpt_handler.get_summariser_prompt()
+                else:
+                    greet = self.gpt_handler.get_dynamic_prompt()
+            except Exception:
+                greet = None
+        if not greet:
+            greet = "Good day sir, what would you like me to summarise?"
+
+        if speak_and_wait:
+            speak_and_wait(greet)
+        
+        # Listen
+        cmd = ""
+        if listen_command:
+            try:
+                cmd = listen_command(timeout=10, phrase_time_limit=15) or ""
+            except Exception as e:
+                print(f"Voice listen error: {e}")
+                cmd = ""
+        if not cmd.strip():
+            if speak_and_wait:
+                speak_and_wait("I didn't catch that, sir. Please try again.")
+            return
+
+        # Identity/name handling for this page
+        lower = cmd.lower().strip()
+        if ("your name" in lower) or ("what's your name" in lower) or ("what is your name" in lower) or (lower.startswith("name") and "your" in lower):
+            if self.gpt_handler:
+                try:
+                    reply = self.gpt_handler.get_name_response()
+                except Exception:
+                    reply = "My name is DeskPilot, sir."
+            else:
+                reply = "My name is DeskPilot, sir."
+            if speak_and_wait:
+                speak_and_wait(reply)
+            return
+
+        if any(p in lower for p in ["who are you", "what can you do", "your capabilities", "capabilities", "functions", "introduce yourself", "what are you"]):
+            # Tailor for file summariser page
+            if self.gpt_handler:
+                try:
+                    intro = "I am DeskPilot sir, your file summarisation assistant here to help on your desktop."
+                except Exception:
+                    pass
+            else:
+                intro = "I am DeskPilot sir, your file summarisation assistant here to help on your desktop."
+            extra = "I can summarise files, create timelines, extract highlights, and explain code contents."
+            if speak_and_wait:
+                speak_and_wait(f"{intro} {extra}")
+            return
+
+        # Otherwise treat as a summary request
+        target = uploaded_files[0]
+        instruction = cmd
+        res = self.file_summariser.summarise(target, instruction)
+        if not res.get('success'):
+            msg = res.get('message', 'I could not complete that request.')
+            if speak_and_wait:
+                speak_and_wait(f"Sorry sir, {msg}")
+            messagebox.showerror("Summary Error", msg)
+            return
+
+        self.show_summary_result(Path(target).name, res.get('summary',''), res.get('kind','general'))
+        if speak_and_wait:
+            speak_and_wait("Summary completed successfully, sir.")
+
+    def show_summary_result(self, filename: str, summary_text: str, kind: str):
+        """Open a modal window (popup) to display the summary with Copy/Save controls."""
+        # Close any stale window object
+        try:
+            if self.summary_window and not self.summary_window.winfo_exists():
+                self.summary_window = None
+        except Exception:
+            self.summary_window = None
+
+        # Create modal only if no other exists
+        if self.summary_window and self.summary_window.winfo_exists():
+            try:
+                self.summary_window.lift()
+            except Exception:
+                pass
+            messagebox.showwarning("Summary Window Open", "Please close the current summary window before generating a new one.")
+            return
+
+        self._summary_saved = False
+        self._last_summary_filename = filename
+
+        self.summary_window = tk.Toplevel(self.root)
+        self.summary_window.title(f"Summary of {filename} — {kind}")
+        # Place to the left side for better focus; allow resizing/moving
+        try:
+            rx = self.root.winfo_rootx()
+            ry = self.root.winfo_rooty()
+            self.summary_window.geometry(f"720x560+{max(20, rx - 10)}+{max(40, ry + 20)}")
+        except Exception:
+            self.summary_window.geometry("720x560+50+80")
+        self.summary_window.configure(bg="#ffffff")
+        self.summary_window.transient(self.root)
+        self.summary_window.grab_set()  # make modal-like
+
+        # Header with centered title and right-aligned buttons
+        header = tk.Frame(self.summary_window, bg="#ffffff")
+        header.pack(fill=tk.X, padx=12, pady=(10, 6))
+        header.grid_columnconfigure(0, weight=1)
+        header.grid_columnconfigure(1, weight=0)
+
+        title_lbl = tk.Label(
+            header,
+            text=f"Summary of {filename} ({kind})",
+            font=("Arial", 16, "bold"),
+            bg="#ffffff",
+            fg="#333333",
+            anchor="center"
+        )
+        title_lbl.grid(row=0, column=0, sticky="n")
+
+        btns_frame = tk.Frame(header, bg="#ffffff")
+        btns_frame.grid(row=0, column=1, sticky="ne")
+
+        # Text area with scrollbar
+        text_frame = tk.Frame(self.summary_window, bg="#ffffff")
+        text_frame.pack(fill=tk.BOTH, expand=True, padx=12, pady=(0, 12))
+
+        scrollbar = tk.Scrollbar(text_frame)
+        scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+
+        self.summary_output_text = tk.Text(
+            text_frame,
+            font=("Arial", 12),
+            bg="#ffffff",
+            fg="#222222",
+            relief='solid',
+            borderwidth=1,
+            wrap=tk.WORD,
+            yscrollcommand=scrollbar.set
+        )
+        self.summary_output_text.pack(fill=tk.BOTH, expand=True)
+        self.summary_output_text.insert('1.0', summary_text)
+        scrollbar.config(command=self.summary_output_text.yview)
+
+        # Button callbacks
+        def copy_to_clipboard():
+            try:
+                self.summary_window.clipboard_clear()
+                self.summary_window.clipboard_append(self.summary_output_text.get('1.0', 'end-1c'))
+                messagebox.showinfo("Copied", "Summary copied to clipboard.")
+            except Exception as e:
+                messagebox.showerror("Copy Error", f"Failed to copy: {e}")
+
+        def save_summary_as():
+            try:
+                init_name = (Path(filename).stem or "summary") + ".txt"
+            except Exception:
+                init_name = "summary.txt"
+            fpath = filedialog.asksaveasfilename(
+                parent=self.summary_window,
+                title="Save Summary As",
+                defaultextension=".txt",
+                initialfile=init_name,
+                filetypes=[
+                    ("Text file", "*.txt"),
+                    ("Markdown", "*.md"),
+                    ("All files", "*.*")
+                ]
+            )
+            if not fpath:
+                return
+            try:
+                content = self.summary_output_text.get('1.0', 'end-1c')
+                with open(fpath, 'w', encoding='utf-8') as f:
+                    f.write(content)
+                self._summary_saved = True
+                messagebox.showinfo("Saved", f"Summary saved to:\n{fpath}")
+            except Exception as e:
+                messagebox.showerror("Save Error", f"Failed to save: {e}")
+
+        # Buttons: Copy and Save (top-right)
+        copy_btn = tk.Button(btns_frame, text="Copy", command=copy_to_clipboard, bg="#f5f5f5")
+        save_btn = tk.Button(btns_frame, text="Save", command=save_summary_as, bg="#e8f0fe")
+        copy_btn.pack(side=tk.LEFT, padx=(0, 6))
+        save_btn.pack(side=tk.LEFT)
+
+        # Close handling with save prompt
+        def on_close():
+            try:
+                if not self._summary_saved:
+                    resp = messagebox.askyesno(
+                        "Unsaved Summary",
+                        "Would you like to save your summary before closing?"
+                    )
+                    if resp:
+                        # Attempt save; if user cancels Save As, keep window open
+                        before = self._summary_saved
+                        save_summary_as()
+                        if not self._summary_saved and before == self._summary_saved:
+                            return
+                self.summary_window.destroy()
+                self.summary_window = None
+                self._summary_saved = True
+            except Exception:
+                try:
+                    self.summary_window.destroy()
+                finally:
+                    self.summary_window = None
+                    self._summary_saved = True
+
+        self.summary_window.protocol("WM_DELETE_WINDOW", on_close)
 
     def back_to_main_menu(self):
         """Return to main menu"""

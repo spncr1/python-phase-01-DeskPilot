@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 """
 Speaker module for DeskPilot using ElevenLabs TTS
-FIXED VERSION: Prevents microphone feedback by ensuring TTS completes before listening
 """
 
 import os
@@ -130,7 +129,6 @@ class VoiceSpeaker:
                 if self._speech_finished_callback:
                     try:
                         self._speech_finished_callback()
-                        print("✅ Speech finished callback executed")
                     except Exception as e:
                         print(f"❌ Callback error: {e}")
                     finally:
@@ -208,9 +206,8 @@ class VoiceSpeaker:
 
         self.speak(text, log_to_transcription, on_finished)
 
-        # Wait for speech to finish
+        # Wait for user to finish the speech for their request...
         finished_event.wait(timeout=30)  # 30 second timeout
-        print("✅ Speech completely finished - safe to listen now")
 
     def stop_speaking(self):
         """Stop current speech"""
