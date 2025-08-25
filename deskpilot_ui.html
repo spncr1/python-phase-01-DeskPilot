@@ -1,0 +1,946 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DeskPilot - Your Desktop Assistant</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+        }
+
+        body {
+            background: linear-gradient(135deg, #1a1c25 0%, #2d3246 100%);
+            color: #e6e9f0;
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .app-container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+            padding: 20px;
+        }
+
+        h1 {
+            font-size: 2.8rem;
+            font-weight: 700;
+            margin-bottom: 10px;
+            background: linear-gradient(90deg, #6c7bff, #77e190);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .subtitle {
+            color: #9feaf9;
+            font-size: 1.2rem;
+        }
+
+        .module-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 25px;
+            margin-bottom: 40px;
+        }
+
+        .module-card {
+            background: rgba(28, 31, 41, 0.85);
+            backdrop-filter: blur(10px);
+            border-radius: 20px;
+            padding: 25px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            text-align: center;
+            transition: all 0.3s ease;
+            cursor: pointer;
+        }
+
+        .module-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 15px 35px rgba(0, 0, 0, 0.5);
+        }
+
+        .module-icon {
+            font-size: 3.5rem;
+            margin-bottom: 20px;
+        }
+
+        .organizer-icon {
+            color: #6c7bff;
+        }
+
+        .launcher-icon {
+            color: #77e190;
+        }
+
+        .summarizer-icon {
+            color: #ff9d7d;
+        }
+
+        .module-title {
+            font-size: 1.5rem;
+            margin-bottom: 15px;
+            color: #e6e9f0;
+        }
+
+        .module-description {
+            color: #9feaf9;
+            line-height: 1.6;
+        }
+
+        .module {
+            display: none;
+            background: rgba(28, 31, 41, 0.85);
+            backdrop-filter: blur(10px);
+            border-radius: 20px;
+            padding: 30px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            margin-bottom: 30px;
+        }
+
+        .module.active {
+            display: block;
+        }
+
+        .module-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 25px;
+        }
+
+        .module-title-large {
+            font-size: 1.8rem;
+            color: #9feaf9;
+            font-weight: 600;
+        }
+
+        .back-btn {
+            background: rgba(45, 50, 70, 0.6);
+            color: #9feaf9;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 20px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .back-btn:hover {
+            background: rgba(55, 60, 85, 0.8);
+            transform: translateY(-2px);
+        }
+
+        /* Desktop Organizer Styles */
+        .organizer-content {
+            display: flex;
+            gap: 30px;
+            flex-wrap: wrap;
+        }
+
+        .folders-section, .actions-section {
+            flex: 1;
+            min-width: 300px;
+        }
+
+        .section-title {
+            font-size: 1.3rem;
+            margin-bottom: 20px;
+            color: #9feaf9;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .folder {
+            background: rgba(45, 50, 70, 0.6);
+            border-radius: 12px;
+            padding: 15px;
+            margin-bottom: 15px;
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            transition: all 0.3s ease;
+        }
+
+        .folder:hover {
+            background: rgba(55, 60, 85, 0.8);
+            transform: translateY(-2px);
+        }
+
+        .folder-title {
+            font-weight: 600;
+            margin-bottom: 10px;
+            color: #77e190;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .folder-items {
+            margin-left: 20px;
+        }
+
+        .folder-item {
+            padding: 5px 0;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .action-item {
+            background: rgba(45, 50, 70, 0.6);
+            border-radius: 12px;
+            padding: 15px;
+            margin-bottom: 15px;
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            transition: all 0.3s ease;
+        }
+
+        .action-item:hover {
+            background: rgba(55, 60, 85, 0.8);
+            transform: translateY(-2px);
+        }
+
+        .action-title {
+            font-weight: 600;
+            margin-bottom: 5px;
+            color: #ff9d7d;
+        }
+
+        .shortcut {
+            color: #6c7bff;
+            font-size: 0.9rem;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        .execution-section {
+            background: rgba(45, 50, 70, 0.6);
+            border-radius: 12px;
+            padding: 20px;
+            margin-top: 20px;
+            border: 1px solid rgba(255, 255, 255, 0.08);
+        }
+
+        .execution-message {
+            margin-bottom: 15px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .btn {
+            background: linear-gradient(90deg, #6c7bff, #9feaf9);
+            color: #1a1c25;
+            border: none;
+            padding: 10px 25px;
+            border-radius: 20px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(108, 123, 255, 0.4);
+        }
+
+        /* App Launcher Styles */
+        .app-launcher-content {
+            max-width: 700px;
+            margin: 0 auto;
+        }
+
+        .instruction {
+            text-align: center;
+            margin-bottom: 25px;
+            font-size: 1.1rem;
+            color: #9feaf9;
+        }
+
+        .app-command {
+            background: rgba(45, 50, 70, 0.6);
+            padding: 15px 20px;
+            border-radius: 10px;
+            margin-bottom: 15px;
+            display: flex;
+            align-items: center;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            border: 1px solid transparent;
+            user-select: none;
+        }
+
+        .app-command:hover {
+            background: rgba(60, 65, 90, 0.8);
+            transform: translateX(5px);
+            border-color: rgba(108, 123, 255, 0.3);
+        }
+
+        .app-command:active {
+            transform: translateX(5px) scale(0.98);
+        }
+
+        .app-command.quit {
+            background: rgba(255, 77, 77, 0.1);
+            border-left: 3px solid #ff4d4d;
+        }
+
+        .app-command.quit i {
+            color: #ff4d4d;
+        }
+
+        .app-command i {
+            margin-right: 12px;
+            font-size: 1.2rem;
+            color: #6c7bff;
+            transition: all 0.2s ease;
+        }
+
+        .app-command.loading {
+            opacity: 0.7;
+            cursor: wait;
+        }
+
+        .app-command.loading i {
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .shortcut {
+            color: #6c7bff;
+            font-size: 0.9rem;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        .app-section {
+            margin-top: 30px;
+        }
+
+        .app-list {
+            background: rgba(45, 50, 70, 0.6);
+            border-radius: 12px;
+            padding: 20px;
+            border: 1px solid rgba(255, 255, 255, 0.08);
+        }
+
+        .app-item {
+            padding: 10px 0;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .app-item:last-child {
+            border-bottom: none;
+        }
+
+        /* File Summarizer Styles */
+        .summarizer-content {
+            max-width: 700px;
+            margin: 0 auto;
+        }
+
+        .upload-area {
+            background: rgba(45, 50, 70, 0.6);
+            border: 2px dashed rgba(255, 255, 255, 0.2);
+            border-radius: 12px;
+            padding: 40px;
+            text-align: center;
+            margin-bottom: 25px;
+            transition: all 0.3s ease;
+            cursor: pointer;
+        }
+
+        .upload-area:hover {
+            border-color: #6c7bff;
+            background: rgba(55, 60, 85, 0.8);
+        }
+
+        .upload-icon {
+            font-size: 3rem;
+            margin-bottom: 15px;
+            color: #6c7bff;
+        }
+
+        .file-types {
+            color: #9feaf9;
+            margin-top: 10px;
+            font-size: 0.9rem;
+        }
+
+        .input-area {
+            margin-bottom: 25px;
+        }
+
+        .input-area label {
+            display: block;
+            margin-bottom: 10px;
+            color: #9feaf9;
+        }
+
+        .input-area textarea {
+            width: 100%;
+            background: rgba(45, 50, 70, 0.6);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 12px;
+            padding: 15px;
+            color: #e6e9f0;
+            resize: vertical;
+            min-height: 100px;
+        }
+
+        /* Floating Buttons */
+        .voice-command-btn {
+            position: fixed;
+            bottom: 25px;
+            right: 25px;
+            width: 60px;
+            height: 60px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #6c7bff, #9feaf9);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            color: #1a1c25;
+            box-shadow: 0 5px 20px rgba(108, 123, 255, 0.4);
+            cursor: pointer;
+            transition: all 0.3s ease;
+            border: none;
+            z-index: 100;
+        }
+
+        .voice-command-btn:hover {
+            transform: scale(1.1);
+        }
+
+        .help-btn {
+            position: fixed;
+            bottom: 25px;
+            left: 25px;
+            width: 60px;
+            height: 60px;
+            border-radius: 50%;
+            background: rgba(45, 50, 70, 0.8);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            color: #9feaf9;
+            box-shadow: 0 5px 20px rgba(0, 0, 0, 0.3);
+            cursor: pointer;
+            transition: all 0.3s ease;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            font-size: 1.5rem;
+            font-weight: bold;
+            z-index: 100;
+        }
+
+        .help-btn:hover {
+            background: rgba(55, 60, 85, 0.9);
+            transform: scale(1.1);
+        }
+
+        @media (max-width: 768px) {
+            .organizer-content {
+                flex-direction: column;
+            }
+
+            .voice-command-btn, .help-btn {
+                width: 50px;
+                height: 50px;
+            }
+
+            .module-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="app-container">
+        <!-- Main Menu -->
+        <div id="main-menu">
+            <div class="header">
+                <h1>DeskPilot</h1>
+                <p class="subtitle">Your Personal Desktop Assistant</p>
+            </div>
+
+            <div class="module-grid">
+                <div class="module-card" data-module="organizer">
+                    <div class="module-icon organizer-icon">
+                        <i class="fas fa-folder"></i>
+                    </div>
+                    <h3 class="module-title">Desktop Organizer</h3>
+                    <p class="module-description">Organize your files and folders with smart suggestions and quick actions.</p>
+                </div>
+
+                <div class="module-card" data-module="launcher">
+                    <div class="module-icon launcher-icon">
+                        <i class="fas fa-rocket"></i>
+                    </div>
+                    <h3 class="module-title">App Launcher</h3>
+                    <p class="module-description">Quickly launch applications and manage currently running apps.</p>
+                </div>
+
+                <div class="module-card" data-module="summarizer">
+                    <div class="module-icon summarizer-icon">
+                        <i class="fas fa-file-alt"></i>
+                    </div>
+                    <h3 class="module-title">File Summarizer</h3>
+                    <p class="module-description">Upload files and get AI-powered summaries in your preferred format.</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Desktop Organizer Module -->
+        <div class="module" id="organizer-module">
+            <div class="module-header">
+                <h2 class="module-title-large">Desktop Organizer</h2>
+                <button class="back-btn" data-target="main-menu">
+                    <i class="fas fa-arrow-left"></i> Back to Menu
+                </button>
+            </div>
+
+            <div class="organizer-content">
+                <div class="folders-section">
+                    <div class="section-title">
+                        <i class="fas fa-folder"></i> Folders
+                    </div>
+
+                    <div class="folder">
+                        <div class="folder-title">
+                            <i class="fas fa-folder-open"></i> Docs
+                        </div>
+                        <div class="folder-items">
+                            <div class="folder-item">
+                                <i class="far fa-file-alt"></i> Report
+                            </div>
+                            <div class="folder-item">
+                                <i class="far fa-file-alt"></i> Budget
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="folder">
+                        <div class="folder-title">
+                            <i class="fas fa-folder-open"></i> Vacation
+                        </div>
+                        <div class="folder-items">
+                            <div class="folder-item">
+                                <i class="far fa-image"></i> Photos
+                            </div>
+                            <div class="folder-item">
+                                <i class="fas fa-music"></i> Music
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="folder">
+                        <div class="folder-title">
+                            <i class="fas fa-folder-open"></i> Presentation
+                        </div>
+                        <div class="folder-items">
+                            <div class="folder-item">
+                                <i class="fas fa-tasks"></i> Projects
+                            </div>
+                            <div class="folder-item">
+                                <i class="fas fa-sticky-note"></i> Notes
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="actions-section">
+                    <div class="section-title">
+                        <i class="fas fa-lightbulb"></i> Suggested Actions
+                    </div>
+
+                    <div class="action-item">
+                        <div class="action-title">Move all docs to "Docs"</div>
+                        <div class="shortcut">
+                            <i class="fas fa-keyboard"></i> Ctrl + D
+                        </div>
+                    </div>
+
+                    <div class="action-item">
+                        <div class="action-title">Group images by date</div>
+                        <div class="shortcut">
+                            <i class="fas fa-keyboard"></i> Ctrl + I
+                        </div>
+                    </div>
+
+                    <div class="action-item">
+                        <div class="action-title">Archive old files (>6 months)</div>
+                        <div class="shortcut">
+                            <i class="fas fa-keyboard"></i> Ctrl + A
+                        </div>
+                    </div>
+
+                    <div class="execution-section">
+                        <div class="execution-message">
+                            <i class="fas fa-check-circle" style="color: #77e190;"></i> Move 3 files to "Docs"
+                        </div>
+                        <button class="btn">
+                            <i class="fas fa-undo"></i> Undo
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- App Launcher Module -->
+        <div class="module" id="launcher-module">
+            <div class="module-header">
+                <h2 class="module-title-large">App Launcher</h2>
+                <button class="back-btn" data-target="main-menu">
+                    <i class="fas fa-arrow-left"></i> Back to Menu
+                </button>
+            </div>
+
+            <div class="app-launcher-content">
+                <div class="instruction">
+                    You can ask me to...
+                </div>
+
+                <div class="app-command" data-command="open" data-app="vscode">
+                    <i class="fas fa-code"></i> Open VS Code
+                </div>
+
+                <div class="app-command" data-command="open" data-app="safari">
+                    <i class="fas fa-compass"></i> Open Safari
+                </div>
+
+                <div class="app-command" data-command="open" data-app="chrome">
+                    <i class="fab fa-chrome"></i> Open Chrome
+                </div>
+
+                <div class="app-command" data-command="open" data-app="firefox">
+                    <i class="fab fa-firefox"></i> Open Firefox
+                </div>
+
+                <div class="app-command" data-command="open" data-app="spotify">
+                    <i class="fab fa-spotify"></i> Open Spotify
+                </div>
+
+                <div class="app-command" data-command="open" data-app="notes">
+                    <i class="fas fa-sticky-note"></i> Open Notes
+                </div>
+
+                <div class="app-command" data-command="open" data-app="terminal">
+                    <i class="fas fa-terminal"></i> Open Terminal
+                </div>
+
+                <div class="app-command" data-command="open" data-app="calculator">
+                    <i class="fas fa-calculator"></i> Open Calculator
+                </div>
+
+                <div class="app-command" data-command="open" data-app="calendar">
+                    <i class="far fa-calendar-alt"></i> Open Calendar
+                </div>
+
+                <div class="app-command quit" data-command="quit" data-app="spotify">
+                    <i class="fas fa-times-circle"></i> Quit Spotify
+                </div>
+
+                <div class="app-command quit" data-command="quit" data-app="chrome">
+                    <i class="fas fa-times-circle"></i> Quit Chrome
+                </div>
+
+                <div class="app-command quit" data-command="quit" data-app="safari">
+                    <i class="fas fa-times-circle"></i> Quit Safari
+                </div>
+
+                <div class="app-command quit" data-command="quit" data-app="vscode">
+                    <i class="fas fa-times-circle"></i> Quit VS Code
+                </div>
+
+                <div class="app-section">
+                    <div class="section-title">
+                        <i class="fas fa-window-restore"></i> Applications Currently Open
+                    </div>
+
+                    <div class="app-list">
+                        <div class="app-item">
+                            <i class="fab fa-chrome"></i> Chrome
+                        </div>
+                        <div class="app-item">
+                            <i class="fas fa-code"></i> VS Code
+                        </div>
+                        <div class="app-item">
+                            <i class="fas fa-folder"></i> Finder
+                        </div>
+                        <div class="app-item">
+                            <i class="fas fa-music"></i> Spotify
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- File Summarizer Module -->
+        <div class="module" id="summarizer-module">
+            <div class="module-header">
+                <h2 class="module-title-large">File Summarizer</h2>
+                <button class="back-btn" data-target="main-menu">
+                    <i class="fas fa-arrow-left"></i> Back to Menu
+                </button>
+            </div>
+
+            <div class="summarizer-content">
+                <div class="upload-area">
+                    <div class="upload-icon">
+                        <i class="fas fa-cloud-upload-alt"></i>
+                    </div>
+                    <p>Drag and drop your file here, or click to upload</p>
+                    <p class="file-types">(.csv .docx .pdf only)</p>
+                </div>
+
+                <div class="input-area">
+                    <label for="summary-instructions">
+                        <i class="fas fa-pencil-alt"></i> Describe how you'd like your file summarized
+                    </label>
+                    <textarea id="summary-instructions" placeholder="e.g. 'Summarize in bullet points', 'Write as a short news article'..."></textarea>
+                </div>
+
+                <button class="btn" style="width: 100%;">
+                    <i class="fas fa-magic"></i> Summarize File
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <button class="voice-command-btn">
+        <i class="fas fa-microphone"></i>
+    </button>
+
+    <button class="help-btn">?</button>
+
+    <script>
+        // Wait for pywebview API to be ready
+        window.addEventListener('pywebviewready', function() {
+            console.log('pywebview ready');
+            
+            // Navigation functionality
+            document.querySelectorAll('.module-card').forEach(card => {
+                card.addEventListener('click', async () => {
+                    const moduleName = card.dataset.module;
+                    try {
+                        // Call Python backend to handle module opening
+                        const result = await pywebview.api.execute_command(`open_${moduleName}`);
+                        if (result && result.status === 'success') {
+                            document.getElementById('main-menu').style.display = 'none';
+                            document.getElementById(`${moduleName}-module`).classList.add('active');
+                        } else {
+                            console.error('Failed to open module:', result?.message || 'Unknown error');
+                        }
+                    } catch (e) {
+                        console.error('Error:', e);
+                    }
+                });
+            });
+
+            // Back button functionality
+            document.querySelectorAll('.back-btn').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    document.querySelectorAll('.module').forEach(module => {
+                        module.classList.remove('active');
+                    });
+                    document.getElementById(btn.dataset.target).style.display = 'block';
+                });
+            });
+
+            // Voice command button functionality
+            document.querySelector('.voice-command-btn')?.addEventListener('click', async function() {
+                try {
+                    await pywebview.api.execute_command('start_voice_command');
+                } catch (e) {
+                    console.error('Voice command error:', e);
+                }
+            });
+
+            // Help button functionality
+            document.querySelector('.help-btn')?.addEventListener('click', async function() {
+                try {
+                    await pywebview.api.execute_command('show_help');
+                } catch (e) {
+                    console.error('Help error:', e);
+                }
+            });
+
+            // App command functionality
+            document.querySelectorAll('.app-command').forEach(command => {
+                command.addEventListener('click', async function() {
+                    const action = this.getAttribute('data-command');
+                    const app = this.getAttribute('data-app');
+                    
+                    if (!action || !app) return;
+                    
+                    // Show loading state
+                    this.classList.add('loading');
+                    
+                    try {
+                        let result;
+                        
+                        if (window.pywebview) {
+                            try {
+                                if (action === 'open') {
+                                    result = await window.pywebview.api.open_app(app);
+                                } else if (action === 'quit') {
+                                    result = await window.pywebview.api.quit_app(app);
+                                }
+                                
+                                if (result && result.status === 'success') {
+                                    showNotification(result.message || 'Action completed successfully', 'success');
+                                } else {
+                                    throw new Error(result?.message || 'Unknown error occurred');
+                                }
+                            } catch (error) {
+                                console.error('Error calling Python function:', error);
+                                showNotification(`Error: ${error.message || 'Failed to execute command'}`, 'error');
+                            }
+                        } else {
+                            // Fallback for browser preview
+                            console.log(`[Browser Preview] ${action} ${app}`);
+                            showNotification(`${action === 'open' ? 'Opening' : 'Quitting'} ${app} (browser preview mode)`, 'info');
+                            await new Promise(resolve => setTimeout(resolve, 1000)); // Simulate delay
+                        }
+                    } catch (error) {
+                        console.error('Error:', error);
+                        showNotification(`Error: ${error.message || 'An error occurred'}`, 'error');
+                    } finally {
+                        // Remove loading state
+                        this.classList.remove('loading');
+                    }
+                });
+            });
+            
+            // Show notification function
+            function showNotification(message, type = 'info') {
+                // Check if notification container exists, if not create it
+                let container = document.getElementById('notification-container');
+                if (!container) {
+                    container = document.createElement('div');
+                    container.id = 'notification-container';
+                    container.style.position = 'fixed';
+                    container.style.top = '20px';
+                    container.style.right = '20px';
+                    container.style.zIndex = '1000';
+                    document.body.appendChild(container);
+                }
+
+                // Create notification element
+                const notification = document.createElement('div');
+                notification.className = `notification ${type}`;
+                notification.textContent = message;
+                
+                // Add styles for the notification
+                notification.style.padding = '12px 20px';
+                notification.style.marginBottom = '10px';
+                notification.style.borderRadius = '8px';
+                notification.style.color = 'white';
+                notification.style.boxShadow = '0 4px 12px rgba(0, 0, 0, 0.15)';
+                notification.style.animation = 'slideIn 0.3s ease-out';
+                notification.style.transform = 'translateX(120%)';
+                notification.style.transition = 'transform 0.3s ease-in-out';
+                
+                // Set background color based on type
+                const colors = {
+                    success: '#4CAF50',
+                    error: '#F44336',
+                    info: '#2196F3',
+                    warning: '#FF9800'
+                };
+                notification.style.backgroundColor = colors[type] || colors.info;
+                
+                // Add to container
+                container.appendChild(notification);
+                
+                // Trigger reflow to start animation
+                setTimeout(() => {
+                    notification.style.transform = 'translateX(0)';
+                }, 10);
+                
+                // Auto-remove after delay
+                setTimeout(() => {
+                    notification.style.transform = 'translateX(120%)';
+                    setTimeout(() => {
+                        notification.remove();
+                        // Remove container if empty
+                        if (container && container.children.length === 0) {
+                            container.remove();
+                        }
+                    }, 300);
+                }, 4000);
+            }
+            
+            // Add animation for notifications
+            const style = document.createElement('style');
+            style.textContent = `
+                @keyframes slideIn {
+                    from { transform: translateX(120%); }
+                    to { transform: translateX(0); }
+                }
+            `;
+            document.head.appendChild(style);
+            
+            // Show welcome notification
+            setTimeout(() => {
+                showNotification('Welcome to DeskPilot! Click on any module to get started.', 'info');
+            }, 1000);
+
+            // File upload area functionality
+            const uploadArea = document.querySelector('.upload-area');
+            if (uploadArea) {
+                uploadArea.addEventListener('click', async function() {
+                    try {
+                        await pywebview.api.execute_command('open_file_dialog');
+                    } catch (e) {
+                        console.error('File dialog error:', e);
+                    }
+                });
+            }
+
+            // Initialize the main menu
+            document.getElementById('main-menu').style.display = 'block';
+        });
+
+        // Error handling for pywebview API
+        if (typeof pywebview === 'undefined') {
+            console.warn('pywebview API not found. Running in browser preview mode.');
+            // Fallback for browser testing
+            document.addEventListener('DOMContentLoaded', () => {
+                document.getElementById('main-menu').style.display = 'block';
+                
+                // Basic navigation for testing
+                document.querySelectorAll('.module-card').forEach(card => {
+                    card.addEventListener('click', () => {
+                        document.getElementById('main-menu').style.display = 'none';
+                        document.getElementById(`${card.dataset.module}-module`).classList.add('active');
+                    });
+                });
+            });
+        }
+    </script>
+</body>
+</html>

@@ -16,6 +16,12 @@ sys.path.append(str(Path(__file__).parent.parent))
 # Load environment variables
 load_dotenv()
 
+# Try to import voice ID from config, fallback to env only if not available
+try:
+    from config import ELEVENLABS_VOICE_ID as CONFIG_ELEVENLABS_VOICE_ID
+except Exception:
+    CONFIG_ELEVENLABS_VOICE_ID = None
+
 try:
     from elevenlabs.client import ElevenLabs
     from elevenlabs import play
@@ -40,7 +46,9 @@ class VoiceSpeaker:
 
         # Get API credentials from environment
         self.api_key = os.getenv("ELEVENLABS_API_KEY")
-        self.voice_id = "PYVunL4QLJz0auimQhZB"  # Your Aussie JARVIS voice
+        # Determine voice ID: ENV takes precedence, then config, then fallback default
+        env_voice = os.getenv("ELEVENLABS_VOICE_ID")
+        self.voice_id = (env_voice or CONFIG_ELEVENLABS_VOICE_ID or "PYVunL4QLJz0auimQhZB").strip()
 
         # Initialize ElevenLabs client
         self.elevenlabs_client = None

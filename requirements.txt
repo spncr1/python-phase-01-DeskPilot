@@ -1,5 +1,8 @@
 # Core AI/ML libraries
 openai>=1.0.0
+# Pin httpx below 0.28 due to breaking change removing 'proxies' kwarg
+# OpenAI SDK (some versions) passes 'proxies' to httpx.Client; httpx>=0.28 breaks this
+httpx<0.28
 elevenlabs>=0.2.0
 
 # Voice processing

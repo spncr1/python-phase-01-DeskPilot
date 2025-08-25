@@ -32,8 +32,15 @@ def listen_command(timeout=5, phrase_time_limit=10):
             print("Transcribing with Whisper...")
 
             # Placeholder: Whisper model is hardcoded as "base" — consider making this configurable
-            query = recognizer.recognize_whisper(audio, model="base")
-            print(f"You said: {query}")
+            try:
+                query = recognizer.recognize_google(audio)
+                print(f"You said: {query}")
+            except sr.UnknownValueError:
+                print("Google Speech Recognition could not understand audio")
+                return ""
+            except sr.RequestError as e:
+                print(f"Could not request results from Google Speech Recognition service; {e}")
+                return ""
 
             return query.lower().strip()
 
